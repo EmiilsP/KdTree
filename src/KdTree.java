@@ -2,11 +2,23 @@ import edu.princeton.cs.algs4.Point2D;
 import edu.princeton.cs.algs4.RectHV;
 import edu.princeton.cs.algs4.StdDraw;
 
-import java.lang.*;
+import java.lang.NullPointerException;
 import java.util.Comparator;
 import java.util.Stack;
 
 public class KdTree {
+    private static class Node { // node object
+        private Point2D point;
+        private RectHV rect;
+        private Node left;
+        private Node right;
+
+        private Node(Point2D point, RectHV rect) {
+            this.point = point;
+            this.rect = rect;
+        }
+    }
+
     private Node root;
     private int size;
 
@@ -14,26 +26,104 @@ public class KdTree {
         size = 0;
     }
 
-    public boolean isEmpty() {
+    public boolean isEmpty() { // is KdTree empty?
         return size == 0;
     }
 
-    public int size() {
+    public int size() { // size of KdTree
         return size;
     }
 
-    public void insert(Point2D point) {
+    public void insert(Point2D point) { // insert new point
         if (point == null) {
             throw new NullPointerException();
         }
         root = insert(root, point, true, null, 0);
     }
 
+    private Node insert(Node node, Point2D point, boolean side, Node parent, int x) {
+        if (node == null) {
+            RectHV rect;
+            if (parent == null) {
+                rect = new RectHV(0.0, 0.0, 1.0, 1.0);
+            } else {
+                if (!side) {
+                    if (x < 0) {
+                        rect = new RectHV(parent.rect.xmin(), parent.rect.ymin(), parent.point.x(), parent.rect.ymax());
+                    } else {
+                        rect = new RectHV(parent.point.x(), parent.rect.ymin(), parent.rect.xmax(), parent.rect.ymax());
+                    }
+                } else {
+                    if (x < 0) {
+                        rect = new RectHV(parent.rect.xmin(), parent.rect.ymin(), parent.rect.xmax(), parent.point.y());
+                    } else {
+                        rect = new RectHV(parent.rect.xmin(), parent.point.y(), parent.rect.xmax(), parent.rect.ymax());
+                    }
+                }
+            }
+            size++;
+            return new Node(point, rect);
+        }
+
+        Comparator<Point2D> comparator;
+
+        if (side) {
+            comparator = Point2D.X_ORDER;
+        } else {
+            comparator = Point2D.Y_ORDER;
+        }
+
+        int comp = comparator.compare(point, node.point);
+
+        if (comp < 0) {
+            node.left = insert(node.left, point, !side, node, comp);
+        } else if (comp > 0 || !node.point.equals(point)) {
+            node.right = insert(node.right, point, !side, node, comp);
+        }
+        return node;
+    }
+
     public boolean contains(Point2D point) {
         if (point == null) {
             throw new NullPointerException();
         }
-        return contain(root, point, true);
+        return contains(root, point, true);
+    }
+
+    private boolean contains(Node node, Point2D point, boolean side) {
+        if (node == null) {
+            return false;
+        }
+
+        if (node.point.equals(point)) {
+            return true;
+        }
+
+        Comparator<Point2D> comparator;
+
+        if (side) {
+            comparator = Point2D.X_ORDER;
+        } else {
+            comparator = Point2D.Y_ORDER;
+        }
+
+        int comp = comparator.compare(point, node.point);
+
+        if (comp < 0) {
+            return contains(node.left, point, !side);
+        } else {
+            return contains(node.right, point, !side);
+        }
+    }
+
+    private static class Split {
+        private Node node;
+        private boolean side;
+
+        private Split(Node node, Boolean side) {
+            this.node = node;
+            this.side = side;
+        }
     }
 
     public void draw() { //draw all points
@@ -73,7 +163,6 @@ public class KdTree {
         }
     }
 
-
     public Iterable<Point2D> range(RectHV rect) { // all points that are inside the rectangle
         if (rect == null) {
             throw new java.lang.NullPointerException();
@@ -83,6 +172,18 @@ public class KdTree {
             range(root, rect, inside);
         }
         return inside;
+    }
+
+    private void range(Node node, RectHV rect, Stack<Point2D> in) {
+        if (rect.contains(node.point)) {
+            in.push(node.point);
+        }
+        if (node.left != null && node.left.rect.intersects(rect)) {
+            range(node.left, rect, in);
+        }
+        if (node.right != null && node.right.rect.intersects(rect)) {
+            range(node.right, rect, in);
+        }
     }
 
     public Point2D nearest(Point2D point) {
@@ -103,8 +204,7 @@ public class KdTree {
         double d2n = actual.distanceSquaredTo(nearest);
         double d2r = node.rect.distanceSquaredTo(actual);
 
-        // Is the nearest point closer than this node's rectangle? If so, this
-        // node can't contain anything nearer, so return
+        // If node can't contain anything nearer, so return
         if (d2n < d2r) {
             return nearest;
         }
@@ -121,12 +221,12 @@ public class KdTree {
             return nearest;
         }
 
-        // Only left/bottom child? Recurse to it
+        // left/bottom
         if (node.right == null) {
             return FindNear(node.left, actual, nearest);
         }
 
-        // Only right/top child? Recurse to it
+        // right/top
         if (node.left == null) {
             return FindNear(node.right, actual, nearest);
         }
@@ -142,107 +242,4 @@ public class KdTree {
 
         return nearest;
     }
-
-    private void range(Node node, RectHV rect, Stack<Point2D> in) {
-        if (rect.contains(node.point)) {
-            in.push(node.point);
-        }
-        if (node.left != null && node.left.rect.intersects(rect)) {
-            range(node.left, rect, in);
-        }
-        if (node.right != null && node.right.rect.intersects(rect)) {
-            range(node.right, rect, in);
-        }
-    }
-
-    private boolean contain(Node node, Point2D point, boolean side) {
-        if (node == null) {
-            return false;
-        }
-
-        if (node.point.equals(point)) {
-            return true;
-        }
-
-        Comparator<Point2D> comparator;
-
-        if (side) {
-            comparator = Point2D.X_ORDER;
-        } else {
-            comparator = Point2D.Y_ORDER;
-        }
-
-        int comp = comparator.compare(point, node.point);
-
-        if (comp > 0) {
-            return contain(node.right, point, !side);
-        } else {
-            return contain(node.left, point, !side);
-        }
-    }
-
-
-    private Node insert(Node node, Point2D point, boolean side, Node parent, int x) {
-        if (node == null) {
-            RectHV rect;
-            if (parent == null) {
-                rect = new RectHV(0.0, 0.0, 1.0, 1.0);
-            } else {
-                if (!side) {
-                    if (x > 0) {
-                        rect = new RectHV(parent.point.x(), parent.rect.ymin(), parent.rect.xmax(), parent.rect.ymax());
-                    } else {
-                        rect = new RectHV(parent.rect.xmin(), parent.rect.ymin(), parent.point.x(), parent.rect.ymax());
-                    }
-                } else {
-                    if (x > 0) {
-                        rect = new RectHV(parent.rect.xmin(), parent.point.y(), parent.rect.xmax(), parent.rect.ymax());
-                    } else {
-                        rect = new RectHV(parent.rect.xmin(), parent.rect.ymin(), parent.rect.xmax(), parent.point.y());
-                    }
-                }
-            }
-            return new Node(point, rect);
-        }
-
-        Comparator<Point2D> comparator;
-
-        if (side) {
-            comparator = Point2D.X_ORDER;
-        } else {
-            comparator = Point2D.Y_ORDER;
-        }
-
-        int comp = comparator.compare(point, node.point);
-
-        if (comp < 0) {
-            node.left = insert(node.left, point, !side, node, comp);
-        } else if (comp > 0 || !node.point.equals(point)) {
-            node.right = insert(node.right, point, !side, node, comp);
-        }
-        return node;
-    }
-
-    private static class Split {
-        private Node node;
-        private boolean side;
-
-        private Split(Node node, Boolean side) {
-            this.node = node;
-            this.side = side;
-        }
-    }
-
-    private static class Node {
-        private Point2D point;
-        private RectHV rect;
-        private Node left;
-        private Node right;
-
-        private Node(Point2D point, RectHV rect) {
-            this.point = point;
-            this.rect = rect;
-        }
-    }
-
 }
