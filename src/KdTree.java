@@ -2,7 +2,6 @@ import edu.princeton.cs.algs4.Point2D;
 import edu.princeton.cs.algs4.RectHV;
 import edu.princeton.cs.algs4.StdDraw;
 
-import java.lang.NullPointerException;
 import java.util.Comparator;
 import java.util.Stack;
 
@@ -36,7 +35,7 @@ public class KdTree {
 
     public void insert(Point2D point) { // insert new point
         if (point == null) {
-            throw new NullPointerException();
+            throw new IllegalArgumentException();
         }
         root = insert(root, point, true, null, 0);
     }
@@ -85,7 +84,7 @@ public class KdTree {
 
     public boolean contains(Point2D point) {
         if (point == null) {
-            throw new NullPointerException();
+            throw new IllegalArgumentException();
         }
         return contains(root, point, true);
     }
@@ -165,7 +164,7 @@ public class KdTree {
 
     public Iterable<Point2D> range(RectHV rect) { // all points that are inside the rectangle
         if (rect == null) {
-            throw new java.lang.NullPointerException();
+            throw new IllegalArgumentException();
         }
         Stack<Point2D> inside = new Stack<>();
         if (root != null) {
@@ -188,58 +187,61 @@ public class KdTree {
 
     public Point2D nearest(Point2D point) {
         if (point == null) {
-            throw new NullPointerException();
+            throw new IllegalArgumentException();
         }
-        if (root == null) {
-            return null;
-        }
-        return FindNear(root, point, root.point);
+        return nearest(root, point, Double.POSITIVE_INFINITY);
     }
 
-    private Point2D FindNear(Node node, Point2D actual, Point2D nearest) {
-        if (node == null) {
-            return nearest;
+    // Find the nearest point that is closer than distance
+    private Point2D nearest(Node x, Point2D point, double distance) {
+        if (x == null) {
+            return null;
         }
 
-        double d2n = actual.distanceSquaredTo(nearest);
-        double d2r = node.rect.distanceSquaredTo(actual);
-
-        // If node can't contain anything nearer, so return
-        if (d2n < d2r) {
-            return nearest;
+        if (x.rect.distanceTo(point) >= distance) {
+            return null;
         }
 
-        double d2p = actual.distanceSquaredTo(node.point);
+        Point2D nearestPoint = null;
+        double nearestDistance = distance;
+        double d;
 
-        // Is this node nearer than the current nearest? If so, update
-        if (d2p < d2n) {
-            nearest = node.point;
+        d = point.distanceTo(x.point);
+        if (d < nearestDistance) {
+            nearestPoint = x.point;
+            nearestDistance = d;
         }
 
-        // No children? Return current nearest
-        if (node.left == null && node.right == null) {
-            return nearest;
+        // Choose subtree that is closer to point.
+
+        Node firstNode = x.left;
+        Node secondNode = x.right;
+
+        if (firstNode != null && secondNode != null) {
+            if (firstNode.rect.distanceTo(point) > secondNode.rect.distanceTo(point)) {
+                firstNode = x.right;
+                secondNode = x.left;
+            }
         }
 
-        // left/bottom
-        if (node.right == null) {
-            return FindNear(node.left, actual, nearest);
+        Point2D firstNearestPoint = nearest(firstNode, point, nearestDistance);
+        if (firstNearestPoint != null) {
+            d = point.distanceTo(firstNearestPoint);
+            if (d < nearestDistance) {
+                nearestPoint = firstNearestPoint;
+                nearestDistance = d;
+            }
         }
 
-        // right/top
-        if (node.left == null) {
-            return FindNear(node.right, actual, nearest);
+        Point2D secondNearestPoint = nearest(secondNode, point, nearestDistance);
+        if (secondNearestPoint != null) {
+            d = point.distanceTo(secondNearestPoint);
+            if (d < nearestDistance) {
+                nearestPoint = secondNearestPoint;
+                nearestDistance = d;
+            }
         }
 
-        // Try both children, the one containing the query point first
-        if (node.left.rect.contains(actual)) {
-            nearest = FindNear(node.left, actual, nearest);
-            nearest = FindNear(node.right, actual, nearest);
-        } else {
-            nearest = FindNear(node.right, actual, nearest);
-            nearest = FindNear(node.left, actual, nearest);
-        }
-
-        return nearest;
+        return nearestPoint;
     }
 }
